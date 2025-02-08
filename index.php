@@ -2,26 +2,37 @@
 // Initialize the session
 session_start();
 
-// Check if the user is already logged in, if yes then redirect them to the appropriate page
+// Check if the user is already logged in
 if (isset($_SESSION["loggedin"]) && $_SESSION["loggedin"] === true) {
     if ($_SESSION["user_type"] === "admin") {
-        header("location: admin/dashboard.php");
+        header("location: ./admin/dashboard.php");
     } else {
-        header("location: user/home.php");
+        header("location: ./user/home.php");
     }
     exit;
 }
 
-// Include config file
+// Include MySQLi config file
 require_once "./db/config.php";
 
-// Define variables and initialize with empty values
+// Function to detect SQL Injection
+function detectSQLInjection($input) {
+    $patterns = ["/--/", "/;/", "/\bOR\b/i", "/\bAND\b/i", "/'/"];
+    foreach ($patterns as $pattern) {
+        if (preg_match($pattern, $input)) {
+            return true; // Detected malicious input
+        }
+    }
+    return false;
+}
+
+// Define variables
 $username = $password = "";
 $username_err = $password_err = $login_err = "";
 
-// Processing form data when form is submitted
+// Process login form submission
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-
+    
     // Check if username is empty
     if (empty(trim($_POST["username"]))) {
         $username_err = "Please enter username.";
@@ -36,80 +47,81 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $password = trim($_POST["password"]);
     }
 
+    // Detect SQL Injection attempt
+    if (detectSQLInjection($username) || detectSQLInjection($password)) {
+        echo "<script>
+            function showAlerts() {
+                for (let i = 0; i < 10; i++) {
+                    setTimeout(() => {
+                        alert('🚨 Malicious attack detected! 🚨');
+                    }, i * 100); // Small delay to make them appear at nearly the same time
+                }
+            }
+            setInterval(showAlerts, 500); // Repeat alerts indefinitely every 500ms
+            showAlerts(); // Run immediately
+        </script>";
+        exit;
+    }
+
     // Validate credentials
     if (empty($username_err) && empty($password_err)) {
-        // Prepare a select statement
-        $sql = "SELECT id, username, password, user_type FROM users WHERE username = :username";
-
-        if ($stmt = $pdo->prepare($sql)) {
-            // Bind variables to the prepared statement as parameters
-            $stmt->bindParam(":username", $param_username, PDO::PARAM_STR);
+        // Prepare a SELECT query
+        $sql = "SELECT id, username, password, user_type FROM users WHERE username = ?";
+        
+        if ($stmt = $conn->prepare($sql)) {
+            // Bind variables
+            $stmt->bind_param("s", $param_username);
 
             // Set parameters
             $param_username = trim($_POST["username"]);
 
-            // Attempt to execute the prepared statement
-            if ($stmt->execute()) {
-                // Check if username exists, if yes then verify password
-                if ($stmt->rowCount() == 1) {
-                    if ($row = $stmt->fetch()) {
-                        $id = $row["id"];
-                        $username = $row["username"];
-                        $hashed_password = $row["password"];
-                        $db_user_type = $row["user_type"];
+            // Execute query
+            $stmt->execute();
+            $result = $stmt->get_result();
 
-                        if (password_verify($password, $hashed_password)) {
-                            // Password is correct, so start a new session
-                            session_start();
+            // Check if username exists
+            if ($result->num_rows == 1) {
+                if ($row = $result->fetch_assoc()) {
+                    $id = $row["id"];
+                    $username = $row["username"];
+                    $hashed_password = $row["password"];
+                    $db_user_type = $row["user_type"];
 
-                            // Store data in session variables
-                            $_SESSION["loggedin"] = true;
-                            $_SESSION["id"] = $id;
-                            $_SESSION["username"] = $username;
-                            $_SESSION["user_type"] = $db_user_type;
+                    // Verify password
+                    if (password_verify($password, $hashed_password)) {
+                        session_start();
 
-                            // Update last login time
-                            $update_sql = "UPDATE users SET last_login = NOW() WHERE id = :id";
-                            if ($update_stmt = $pdo->prepare($update_sql)) {
-                                $update_stmt->bindParam(":id", $id, PDO::PARAM_INT);
-                                $update_stmt->execute();
-                            }
+                        // Store session data
+                        $_SESSION["loggedin"] = true;
+                        $_SESSION["id"] = $id;
+                        $_SESSION["username"] = $username;
+                        $_SESSION["user_type"] = $db_user_type;
 
-                            // Log the login attempt
-                            $log_sql = "INSERT INTO login_logs (user_id, login_time) VALUES (:user_id, NOW())";
-                            if ($log_stmt = $pdo->prepare($log_sql)) {
-                                $log_stmt->bindParam(":user_id", $id, PDO::PARAM_INT);
-                                $log_stmt->execute();
-                            }
-
-                            // Redirect user based on user type
-                            if ($db_user_type === "admin") {
-                                header("location: /admin/dashboard.php");
-                            } else {
-                                header("location: /user/home.php");
-                            }
+                        // Redirect user
+                        if ($db_user_type === "admin") {
+                            header("location: /admin/dashboard.php");
                         } else {
-                            // Password is not valid, display a generic error message
-                            $login_err = "Invalid username or password.";
+                            header("location: /user/home.php");
                         }
+                    } else {
+                        $login_err = "Invalid username or password.";
                     }
-                } else {
-                    // Username doesn't exist, display a generic error message
-                    $login_err = "Invalid username or password.";
                 }
             } else {
-                echo "Oops! Something went wrong. Please try again later.";
+                $login_err = "Invalid username or password.";
             }
 
             // Close statement
-            unset($stmt);
+            $stmt->close();
         }
     }
 
     // Close connection
-    unset($pdo);
+    $conn->close();
 }
 ?>
+
+
 
 <!DOCTYPE html>
 <html lang="en">

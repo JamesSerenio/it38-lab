@@ -1,13 +1,14 @@
 <?php
-$host = 'localhost'; // or your database host
-$dbname = 'it38c-2';
-$username = 'root';
-$password = '';
+define('DB_SERVER', 'localhost');
+define('DB_USERNAME', 'root');
+define('DB_PASSWORD', '');
+define('DB_NAME', 'it38c-2');
 
-try {
-    $pdo = new PDO("mysql:host=$host;dbname=$dbname", $username, $password);
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-} catch (PDOException $e) {
-    die("ERROR: Could not connect. " . $e->getMessage());
+// Create MySQLi connection
+$conn = new mysqli(DB_SERVER, DB_USERNAME, DB_PASSWORD, DB_NAME);
+
+// Check connection
+if ($conn->connect_error) {
+    die("ERROR: Could not connect. " . $conn->connect_error);
 }
 ?>
