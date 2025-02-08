@@ -5,9 +5,9 @@ session_start();
 // Check if the user is already logged in, if yes then redirect them to the appropriate page
 if (isset($_SESSION["loggedin"]) && $_SESSION["loggedin"] === true) {
     if ($_SESSION["user_type"] === "admin") {
-        header("location: admin/dashboard.php");
+        header("location: ./admin/dashboard.php");
     } else {
-        header("location: user/home.php");
+        header("location: ./user/home.php");
     }
     exit;
 }
@@ -84,9 +84,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
                             // Redirect user based on user type
                             if ($db_user_type === "admin") {
-                                header("location: /admin/dashboard.php");
+                                header("location: ./admin/dashboard.php");
                             } else {
-                                header("location: /user/home.php");
+                                header("location: ./user/home.php");
                             }
                         } else {
                             // Password is not valid, display a generic error message
