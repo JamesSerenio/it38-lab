@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Feb 06, 2025 at 08:00 AM
+-- Generation Time: Feb 13, 2025 at 09:37 AM
 -- Server version: 10.4.28-MariaDB
 -- PHP Version: 8.2.4
 
@@ -28,7 +28,7 @@ SET time_zone = "+00:00";
 --
 
 CREATE TABLE `login_logs` (
-  `id` int(11) NOT NULL,
+  `login_id` int(11) NOT NULL,
   `user_id` int(11) NOT NULL,
   `login_time` datetime NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -37,9 +37,10 @@ CREATE TABLE `login_logs` (
 -- Dumping data for table `login_logs`
 --
 
-INSERT INTO `login_logs` (`id`, `user_id`, `login_time`) VALUES
-(0, 0, '2025-02-06 14:57:11'),
-(0, 0, '2025-02-06 14:59:17');
+INSERT INTO `login_logs` (`login_id`, `user_id`, `login_time`) VALUES
+(1, 1, '2025-02-13 16:33:16'),
+(2, 2, '2025-02-13 16:33:30'),
+(3, 1, '2025-02-13 16:34:03');
 
 -- --------------------------------------------------------
 
@@ -61,8 +62,40 @@ CREATE TABLE `users` (
 --
 
 INSERT INTO `users` (`id`, `username`, `password`, `user_type`, `last_login`, `created_at`) VALUES
-(0, 'james', '$2y$10$wzNrwPIUS1OGKZzS6Zl33uJloINQ9v5ljxs46io353cKGwmnF1Gsi', 'user', '2025-02-06 14:59:17', '2025-02-06 06:57:06'),
-(0, 'admin', '$2y$10$S4tM3aysnuNZgvq1uK7/U.oglp2Yo3Rk5UoxblY1ZiIM9x1l3.kd2', 'admin', '2025-02-06 14:59:17', '2025-02-06 06:59:10');
+(1, 'admin', '$2y$10$Yuas.HIUbbqiIDxCA4OuDuDP/RBey.OWTc2erzEigzu58T4nv/plW', 'admin', '2025-02-13 16:34:03', '2025-02-13 08:32:47'),
+(2, 'james', '$2y$10$q6CfZDAwXzNp2gIP7nqlq.OJCWGqakOakT0kwgSNCSz2E0TFnZyaG', 'user', '2025-02-13 16:33:30', '2025-02-13 08:33:09');
+
+--
+-- Indexes for dumped tables
+--
+
+--
+-- Indexes for table `login_logs`
+--
+ALTER TABLE `login_logs`
+  ADD PRIMARY KEY (`login_id`);
+
+--
+-- Indexes for table `users`
+--
+ALTER TABLE `users`
+  ADD PRIMARY KEY (`id`);
+
+--
+-- AUTO_INCREMENT for dumped tables
+--
+
+--
+-- AUTO_INCREMENT for table `login_logs`
+--
+ALTER TABLE `login_logs`
+  MODIFY `login_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+
+--
+-- AUTO_INCREMENT for table `users`
+--
+ALTER TABLE `users`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
