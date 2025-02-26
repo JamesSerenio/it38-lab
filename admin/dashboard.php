@@ -1,63 +1,78 @@
 <?php
-// Include config file
 require_once "../db/config.php";
-
-// Initialize the session
 session_start();
 
-// Check if the user is logged in, if not then redirect them to the login page
+// Redirect if not logged in
 if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true) {
-    header("location:./index.php");
+    header("location: ./index.php");
     exit;
 }
 
 // Function to get user statistics
-function getUserStatistics($pdo) {
-    $stats = [
-        "admin" => 0,
-        "user" => 0,
-        "temp-user" => 0, // Assuming 'temp-user' is stored in the database
-        "total" => 0
-    ];
+function getUserStatistics($conn) {
+    $stats = ["admin" => 0, "user" => 0, "temp-user" => 0, "hacker" => 0, "total" => 0];
 
     $sql = "SELECT user_type, COUNT(*) as count FROM users GROUP BY user_type";
-    if ($stmt = $pdo->prepare($sql)) {
-        if ($stmt->execute()) {
-            while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                $stats[$row["user_type"]] = $row["count"];
-            }
+    $result = mysqli_query($conn, $sql);
+
+    if ($result) {
+        while ($row = mysqli_fetch_assoc($result)) {
+            $type = $row["user_type"];
+            $stats[$type] = isset($stats[$type]) ? $row["count"] : 0;
         }
-        unset($stmt);
     }
 
-    // Total users (admin + user + temp-user)
-    $stats["total"] = array_sum($stats);
+    // Count detected hackers from login_attempts table
+    $hackerQuery = "SELECT COUNT(*) AS count FROM login_attempts WHERE status = 'hacker_attempt'";
+    $hackerResult = mysqli_query($conn, $hackerQuery);
+    if ($hackerRow = mysqli_fetch_assoc($hackerResult)) {
+        $stats["hacker"] = $hackerRow["count"];
+    }
+
+    // Total users
+    $stats["total"] = $stats["admin"] + $stats["user"] + $stats["temp-user"] + $stats["hacker"];
     return $stats;
 }
 
 // Fetch user statistics
-$userStats = getUserStatistics($pdo);
+$userStats = getUserStatistics($conn);
 
 // Fetch user accounts
 $userAccounts = [];
 $sql = "SELECT username, user_type, created_at FROM users ORDER BY created_at DESC";
-if ($stmt = $pdo->prepare($sql)) {
-    if ($stmt->execute()) {
-        $userAccounts = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$result = mysqli_query($conn, $sql);
+if ($result) {
+    while ($row = mysqli_fetch_assoc($result)) {
+        $userAccounts[] = $row;
     }
-    unset($stmt);
 }
 
-// Fetch recent logins
-$recentLogins = [];
-$sql = "SELECT u.username, u.user_type, l.login_time FROM login_logs l JOIN users u ON l.user_id = u.id ORDER BY l.login_time DESC";
-if ($stmt = $pdo->prepare($sql)) {
-    if ($stmt->execute()) {
-        $recentLogins = $stmt->fetchAll(PDO::FETCH_ASSOC);
+// Fetch recent login attempts (including hacker attempts)
+$loginAttempts = [];
+$sql = "SELECT username_attempted, ip_address, status, attempt_time FROM login_attempts ORDER BY attempt_time DESC";
+$result = mysqli_query($conn, $sql);
+if ($result) {
+    while ($row = mysqli_fetch_assoc($result)) {
+        $loginAttempts[] = $row;
     }
-    unset($stmt);
+}
+
+
+// Fetch recent logins (includes hackers)
+$recentLogins = [];
+$sql = "SELECT u.username, u.user_type, l.login_time FROM login_logs l JOIN users u ON l.user_id = u.id 
+        UNION 
+        SELECT username_attempted AS username, 'Hacker' AS user_type, attempt_time AS login_time FROM login_attempts 
+        WHERE status = 'hacker_attempt'
+        ORDER BY login_time DESC";
+$result = mysqli_query($conn, $sql);
+if ($result) {
+    while ($row = mysqli_fetch_assoc($result)) {
+        $recentLogins[] = $row;
+    }
 }
 ?>
+
 
 <!DOCTYPE html>
 <html lang="en">
@@ -226,12 +241,39 @@ if ($stmt = $pdo->prepare($sql)) {
                 </div>
             </div>
         </div>
-        <button class="btn btn-primary" onclick="printToPDF()">Print to PDF</button>
+        <div class="col">
+    <div class="card">
+        <div class="card-body">
+            <h3>Login Attempts (Including Hackers)</h3>
+            <table id="loginAttempts" class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>Username Attempted</th>
+                        <th>IP Address</th>
+                        <th>Status</th>
+                        <th>Login Timestamp</th>
+                        <th>Time Elapsed</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($loginAttempts as $attempt): ?>
+                    <tr data-attempt-time="<?php echo htmlspecialchars($attempt['attempt_time']); ?>">
+                        <td><?php echo htmlspecialchars($attempt['username_attempted']); ?></td>
+                        <td><?php echo htmlspecialchars($attempt['ip_address']); ?></td>
+                        <td><?php echo htmlspecialchars($attempt['status']); ?></td>
+                        <td><?php echo date("Y-m-d H:i:s", strtotime($attempt['attempt_time'])); ?></td>
+                        <td class="time-elapsed"></td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 
-
-
+        <button class="btn btn-primary" onclick="printToPDF()">Print to PDF</button>
+    </div>
+</div>
 <script>
     function printToPDF() {
         const element = document.getElementById("dashboardContent"); // Capture only the dashboard content
@@ -250,42 +292,61 @@ if ($stmt = $pdo->prepare($sql)) {
 
 
     function timeElapsed(timestamp) {
-        const currentTime = Date.now() / 1000;
-        const timeDiff = currentTime - new Date(timestamp).getTime() / 1000;
+    const currentTime = Date.now() / 1000; // current time in seconds
+    const timeDiff = currentTime - new Date(timestamp).getTime() / 1000; // time difference in seconds
 
-        const intervals = {
-            year: 31536000,
-            month: 2592000,
-            week: 604800,
-            day: 86400,
-            hour: 3600,
-            minute: 60,
-            second: 1
-        };
+    const intervals = {
+        year: 31536000,
+        month: 2592000,
+        week: 604800,
+        day: 86400,
+        hour: 3600,
+        minute: 60,
+        second: 1
+    };
 
-        for (const [unit, seconds] of Object.entries(intervals)) {
-            const elapsed = timeDiff / seconds;
-            if (elapsed >= 1) {
-                const rounded = Math.floor(elapsed);
-                return `${rounded} ${unit}${rounded > 1 ? 's' : ''} ago`;
-            }
+    for (const [unit, seconds] of Object.entries(intervals)) {
+        const elapsed = timeDiff / seconds;
+        if (elapsed >= 1) {
+            const rounded = Math.floor(elapsed);
+            return `${rounded} ${unit}${rounded > 1 ? 's' : ''} ago`;
         }
-
-        return 'Just now';
     }
 
-    // Apply the time elapsed to the table rows
-    window.onload = function() {
-        const rows = document.querySelectorAll('#recentLogin tbody tr');
-        rows.forEach(row => {
-            const loginTime = row.getAttribute('data-login-time');
-            const timeElapsedStr = timeElapsed(loginTime);
-            row.querySelector('.time-elapsed').textContent = timeElapsedStr;
-        });
+    return 'Just now';
+}
+
+// Apply the time elapsed to the table rows
+window.onload = function() {
+    // For recent logins
+    const recentLoginRows = document.querySelectorAll('#recentLogin tbody tr');
+    recentLoginRows.forEach(row => {
+        const loginTime = row.getAttribute('data-login-time');
+        const timeElapsedStr = timeElapsed(loginTime);
+        row.querySelector('.time-elapsed').textContent = timeElapsedStr;
+    });
+
+    // For login attempts
+    const loginAttemptRows = document.querySelectorAll('#loginAttempts tbody tr');
+    loginAttemptRows.forEach(row => {
+        const attemptTime = row.getAttribute('data-attempt-time');
+        const timeElapsedStr = timeElapsed(attemptTime);
+        row.querySelector('.time-elapsed').textContent = timeElapsedStr;
+    });
+
+    // Initialize DataTables only once when the page is loaded
+    if (!$.fn.DataTable.isDataTable('#recentLogin')) {
+        new DataTable('#recentLogin');
     }
 
-    let table1 = new DataTable('#userAccounts');
-    let table2 = new DataTable('#recentLogin');
+    if (!$.fn.DataTable.isDataTable('#loginAttempts')) {
+        new DataTable('#loginAttempts');
+    }
+
+    if (!$.fn.DataTable.isDataTable('#userAccounts')) {
+        new DataTable('#userAccounts');
+    }
+};
 </script>
 </body>
 </html>
