@@ -50,7 +50,7 @@ INSERT INTO `login_logs` (`login_id`, `user_id`, `login_time`) VALUES
 
 CREATE TABLE `users` (
   `id` int(11) NOT NULL,
-  `username` varchar(50) NOT NULL,
+  `username` varchar(50) NOT NULL UNIQUE,  -- Set username as UNIQUE
   `password` varchar(255) NOT NULL,
   `user_type` enum('admin','user') NOT NULL DEFAULT 'user',
   `last_login` datetime DEFAULT NULL,
@@ -96,6 +96,30 @@ ALTER TABLE `login_logs`
 --
 ALTER TABLE `users`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `attendance`
+--
+
+CREATE TABLE `attendance` (
+  `attendance_id` int(11) NOT NULL ,
+  `user_id` int(11) NOT NULL,
+  `username` varchar(50) NOT NULL,
+  `attendance_date` date NOT NULL,
+  `attendance_time` datetime NOT NULL,
+  PRIMARY KEY (`attendance_id`),
+  FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`username`) REFERENCES `users`(`username`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Set auto-increment for attendance_id
+ALTER TABLE `attendance`
+  MODIFY `attendance_id` int(11) NOT NULL AUTO_INCREMENT, AUTO-- Set auto-increment for attendance_id
+ALTER TABLE `attendance`
+  MODIFY `attendance_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1;
+
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
